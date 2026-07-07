@@ -84,7 +84,38 @@ def logout():
 def citizen_home():
     if 'user_id' not in session or session.get('role') != 'citizen':
         return redirect(url_for('login'))
-    return f"Welcome {session['user_name']}! This is the citizen home page. (Report form coming in Phase 3)"
+    return render_template('citizen_home.html', name=session['user_name'])
+
+AREAS = ['Sector 1 - Market', 'Sector 2 - Residential', 'Sector 3 - Industrial', 'Sector 4 - Downtown', 'Sector 5 - Outskirts']
+CRIME_TYPES = ['Theft', 'Assault', 'Burglary', 'Vandalism', 'Fraud', 'Other']
+
+@app.route('/submit-report', methods=['GET', 'POST'])
+def submit_report():
+    if 'user_id' not in session or session.get('role') != 'citizen':
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        new_report = Report(
+            user_id=session['user_id'],
+            crime_type=request.form['crime_type'],
+            description=request.form['description'],
+            area=request.form['area'],
+            status='Received'
+        )
+        db.session.add(new_report)
+        db.session.commit()
+        flash('Your report has been submitted successfully.')
+        return redirect(url_for('citizen_home'))
+
+    return render_template('report_form.html', areas=AREAS, crime_types=CRIME_TYPES)
+
+@app.route('/my-reports')
+def my_reports():
+    if 'user_id' not in session or session.get('role') != 'citizen':
+        return redirect(url_for('login'))
+
+    reports = Report.query.filter_by(user_id=session['user_id']).order_by(Report.date_submitted.desc()).all()
+    return render_template('my_reports.html', reports=reports)
 
 @app.route('/police-map')
 def police_map():

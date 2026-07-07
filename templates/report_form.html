@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Submit a Crime Report</h2>
+<form method="POST">
+    <label>Type of Crime:</label>
+    <select name="crime_type" required>
+        {% for type in crime_types %}
+        <option value="{{ type }}">{{ type }}</option>
+        {% endfor %}
+    </select><br>
+
+    <label>Area:</label>
+    <select name="area" required>
+        {% for area in areas %}
+        <option value="{{ area }}">{{ area }}</option>
+        {% endfor %}
+    </select><br>
+
+    <label>Description:</label><br>
+    <textarea name="description" rows="5" cols="40" required></textarea><br>
+
+    <button type="submit">Submit Report</button>
+</form>
+<p><a href="{{ url_for('citizen_home') }}">Back to home</a></p>
+{% endblock %}
