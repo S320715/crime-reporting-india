@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Admin Dashboard - {{ name }}</h2>
+<p>
+    <a href="{{ url_for('police_map') }}">View Map</a> |
+    <a href="{{ url_for('create_officer') }}">Create Police Account</a> |
+    <a href="{{ url_for('view_users') }}">View All Users</a> |
+    <a href="{{ url_for('logout') }}">Logout</a>
+</p>
+
+<p>Total Reports: {{ total_reports }} | Total Citizens: {{ total_citizens }} | Total Police Officers: {{ total_police }}</p>
+
+<h3>Reports by Crime Type</h3>
+<canvas id="crimeTypeChart" width="400" height="200"></canvas>
+
+<h3>Reports by Area</h3>
+<canvas id="areaChart" width="400" height="200"></canvas>
+
+<h3>Reports by Status</h3>
+<canvas id="statusChart" width="400" height="200"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    new Chart(document.getElementById('crimeTypeChart'), {
+        type: 'bar',
+        data: {
+            labels: {{ crime_type_labels | tojson }},
+            datasets: [{
+                label: 'Reports',
+                data: {{ crime_type_values | tojson }},
+                backgroundColor: 'rgba(54, 162, 235, 0.6)'
+            }]
+        }
+    });
+
+    new Chart(document.getElementById('areaChart'), {
+        type: 'bar',
+        data: {
+            labels: {{ area_labels | tojson }},
+            datasets: [{
+                label: 'Reports',
+                data: {{ area_values | tojson }},
+                backgroundColor: 'rgba(255, 159, 64, 0.6)'
+            }]
+        }
+    });
+
+    new Chart(document.getElementById('statusChart'), {
+        type: 'pie',
+        data: {
+            labels: {{ status_labels | tojson }},
+            datasets: [{
+                data: {{ status_values | tojson }},
+                backgroundColor: ['#36A2EB', '#FF9F40', '#4BC0C0']
+            }]
+        }
+    });
+</script>
+{% endblock %}

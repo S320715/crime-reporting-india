@@ -126,7 +126,7 @@ def my_reports():
 
 @app.route('/police-map')
 def police_map():
-    if 'user_id' not in session or session.get('role') != 'police':
+    if 'user_id' not in session or session.get('role') not in ['police', 'admin']:
         return redirect(url_for('login'))
     return render_template('police_map.html', name=session['user_name'])
 
@@ -185,7 +185,66 @@ def update_status(report_id):
 def admin_dashboard():
     if 'user_id' not in session or session.get('role') != 'admin':
         return redirect(url_for('login'))
-    return f"Welcome {session['user_name']}! This is the admin dashboard. (Coming in Phase 5)"
+
+    reports = Report.query.all()
+
+    crime_type_counts = {}
+    area_counts = {}
+    status_counts = {}
+
+    for r in reports:
+        crime_type_counts[r.crime_type] = crime_type_counts.get(r.crime_type, 0) + 1
+        area_counts[r.area] = area_counts.get(r.area, 0) + 1
+        status_counts[r.status] = status_counts.get(r.status, 0) + 1
+
+    total_reports = len(reports)
+    total_citizens = User.query.filter_by(role='citizen').count()
+    total_police = User.query.filter_by(role='police').count()
+
+    return render_template('admin_dashboard.html',
+        name=session['user_name'],
+        crime_type_labels=list(crime_type_counts.keys()),
+        crime_type_values=list(crime_type_counts.values()),
+        area_labels=list(area_counts.keys()),
+        area_values=list(area_counts.values()),
+        status_labels=list(status_counts.keys()),
+        status_values=list(status_counts.values()),
+        total_reports=total_reports,
+        total_citizens=total_citizens,
+        total_police=total_police
+    )
+
+@app.route('/admin/create-officer', methods=['GET', 'POST'])
+def create_officer():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        name = request.form['name']
+        email = request.form['email']
+        password = request.form['password']
+
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
+            flash('An account with this email already exists.')
+            return redirect(url_for('create_officer'))
+
+        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        new_officer = User(name=name, email=email, password_hash=password_hash, role='police')
+        db.session.add(new_officer)
+        db.session.commit()
+        flash('Police officer account created successfully.')
+        return redirect(url_for('admin_dashboard'))
+
+    return render_template('create_officer.html')
+
+@app.route('/admin/users')
+def view_users():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return redirect(url_for('login'))
+
+    users = User.query.all()
+    return render_template('view_users.html', users=users)
 
 if __name__ == '__main__':
     with app.app_context():
