@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Police Map - {{ name }}</h2>
+<p><a href="{{ url_for('logout') }}">Logout</a></p>
+
+<div style="margin-bottom: 10px;">
+    <span style="background: blue; color: white; padding: 3px 8px;">Normal</span>
+    <span style="background: orange; color: white; padding: 3px 8px;">Hotspot (5+ reports)</span>
+    <span style="background: red; color: white; padding: 3px 8px;">High Hotspot (10+ reports)</span>
+</div>
+
+<div id="map" style="height: 500px; width: 100%;"></div>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    var map = L.map('map').setView([28.6139, 77.2090], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    fetch('/api/reports')
+        .then(response => response.json())
+        .then(reports => {
+            reports.forEach(function(r) {
+                var color = 'blue';
+                if (r.hotspot_level === 'amber') color = 'orange';
+                if (r.hotspot_level === 'red') color = 'red';
+
+                var marker = L.circleMarker([r.lat, r.lng], {
+                    radius: 10,
+                    fillColor: color,
+                    color: color,
+                    fillOpacity: 0.7
+                }).addTo(map);
+
+                var popupContent = '<b>' + r.crime_type + '</b><br>' +
+                    'Area: ' + r.area + ' (' + r.area_count + ' reports)<br>' +
+                    'Status: ' + r.status + '<br>' +
+                    'Date: ' + r.date + '<br>' +
+                    r.description + '<br><br>' +
+                    '<form method="POST" action="/update-status/' + r.id + '">' +
+                    '<select name="status">' +
+                    '<option value="Received">Received</option>' +
+                    '<option value="Under Investigation">Under Investigation</option>' +
+                    '<option value="Resolved">Resolved</option>' +
+                    '</select>' +
+                    '<button type="submit">Update</button>' +
+                    '</form>';
+
+                marker.bindPopup(popupContent);
+            });
+        });
+</script>
+{% endblock %}

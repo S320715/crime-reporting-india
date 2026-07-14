@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import bcrypt
@@ -88,6 +88,13 @@ def citizen_home():
 
 AREAS = ['Sector 1 - Market', 'Sector 2 - Residential', 'Sector 3 - Industrial', 'Sector 4 - Downtown', 'Sector 5 - Outskirts']
 CRIME_TYPES = ['Theft', 'Assault', 'Burglary', 'Vandalism', 'Fraud', 'Other']
+AREA_COORDS = {
+    'Sector 1 - Market': (28.6139, 77.2090),
+    'Sector 2 - Residential': (28.6200, 77.2150),
+    'Sector 3 - Industrial': (28.6100, 77.2200),
+    'Sector 4 - Downtown': (28.6180, 77.2050),
+    'Sector 5 - Outskirts': (28.6250, 77.2250),
+}
 
 @app.route('/submit-report', methods=['GET', 'POST'])
 def submit_report():
@@ -121,7 +128,58 @@ def my_reports():
 def police_map():
     if 'user_id' not in session or session.get('role') != 'police':
         return redirect(url_for('login'))
-    return f"Welcome {session['user_name']}! This is the police map page. (Coming in Phase 4)"
+    return render_template('police_map.html', name=session['user_name'])
+
+@app.route('/api/reports')
+def api_reports():
+    if 'user_id' not in session or session.get('role') not in ['police', 'admin']:
+        return jsonify([]), 403
+
+    reports = Report.query.all()
+
+    area_counts = {}
+    for r in reports:
+        area_counts[r.area] = area_counts.get(r.area, 0) + 1
+
+    data = []
+    for r in reports:
+        lat, lng = AREA_COORDS.get(r.area, (28.6139, 77.2090))
+        count = area_counts[r.area]
+        if count >= 10:
+            hotspot_level = 'red'
+        elif count >= 5:
+            hotspot_level = 'amber'
+        else:
+            hotspot_level = 'normal'
+
+        data.append({
+            'id': r.id,
+            'crime_type': r.crime_type,
+            'area': r.area,
+            'description': r.description,
+            'status': r.status,
+            'date': r.date_submitted.strftime('%d %b %Y'),
+            'lat': lat,
+            'lng': lng,
+            'hotspot_level': hotspot_level,
+            'area_count': count
+        })
+
+    return jsonify(data)
+
+@app.route('/update-status/<int:report_id>', methods=['POST'])
+def update_status(report_id):
+    if 'user_id' not in session or session.get('role') not in ['police', 'admin']:
+        return redirect(url_for('login'))
+
+    report = Report.query.get_or_404(report_id)
+    report.status = request.form['status']
+    db.session.commit()
+    flash('Report status updated.')
+
+    if session.get('role') == 'police':
+        return redirect(url_for('police_map'))
+    return redirect(url_for('admin_dashboard'))
 
 @app.route('/admin-dashboard')
 def admin_dashboard():
