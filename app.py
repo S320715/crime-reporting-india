@@ -40,6 +40,10 @@ def register():
             flash('An account with this email already exists. Please login instead.')
             return redirect(url_for('register'))
 
+        if len(password) < 6:
+            flash('Password must be at least 6 characters long.')
+            return redirect(url_for('register'))
+
         password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         new_user = User(name=name, email=email, password_hash=password_hash, role='citizen')
         db.session.add(new_user)
@@ -102,6 +106,10 @@ def submit_report():
         return redirect(url_for('login'))
 
     if request.method == 'POST':
+        if len(request.form['description'].strip()) < 10:
+            flash('Please provide a more detailed description (at least 10 characters).')
+            return redirect(url_for('submit_report'))
+
         new_report = Report(
             user_id=session['user_id'],
             crime_type=request.form['crime_type'],
