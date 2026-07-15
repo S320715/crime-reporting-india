@@ -257,5 +257,15 @@ def view_users():
 with app.app_context():
     db.create_all()
 
+    if not User.query.filter_by(email='police@test.com').first():
+        pw = bcrypt.hashpw('police123'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        db.session.add(User(name='Officer Test', email='police@test.com', password_hash=pw, role='police'))
+
+    if not User.query.filter_by(email='admin@test.com').first():
+        pw = bcrypt.hashpw('admin123'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        db.session.add(User(name='Admin Test', email='admin@test.com', password_hash=pw, role='admin'))
+
+    db.session.commit()
+
 if __name__ == '__main__':
     app.run(debug=True)
