@@ -254,7 +254,8 @@ def view_users():
     users = User.query.all()
     return render_template('view_users.html', users=users)
 
+with app.app_context():
+    db.create_all()
+
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
     app.run(debug=True)
