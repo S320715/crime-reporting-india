@@ -3,6 +3,8 @@ import math
 import requests
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from flask_admin import Admin
+from flask_admin.contrib.sqla import ModelView
 from sqlalchemy import text
 from datetime import datetime
 import bcrypt
@@ -34,6 +36,17 @@ class Report(db.Model):
     longitude = db.Column(db.Float, nullable=True)
     status = db.Column(db.String(20), nullable=False, default='Received')
     date_submitted = db.Column(db.DateTime, default=datetime.utcnow)
+
+class SecureModelView(ModelView):
+    def is_accessible(self):
+        return session.get('role') == 'admin'
+
+    def inaccessible_callback(self, name, **kwargs):
+        return redirect(url_for('login'))
+
+admin_panel = Admin(app, name='Crime Reporting Admin', template_mode='bootstrap4', url='/manage')
+admin_panel.add_view(SecureModelView(User, db.session))
+admin_panel.add_view(SecureModelView(Report, db.session))    
 
 def haversine_km(lat1, lon1, lat2, lon2):
     R = 6371
