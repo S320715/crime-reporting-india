@@ -3,6 +3,7 @@ import math
 import requests
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 from datetime import datetime
 import bcrypt
 
@@ -304,6 +305,14 @@ def view_users():
 
 with app.app_context():
     db.create_all()
+
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text('ALTER TABLE report ADD COLUMN IF NOT EXISTS latitude FLOAT'))
+            conn.execute(text('ALTER TABLE report ADD COLUMN IF NOT EXISTS longitude FLOAT'))
+            conn.commit()
+    except Exception as e:
+        print(f"Migration note: {e}")
 
     if not User.query.filter_by(email='police@test.com').first():
         pw = bcrypt.hashpw('police123'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
