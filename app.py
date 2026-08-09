@@ -3,7 +3,7 @@ import math
 import requests
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from flask_admin import Admin
+from flask_admin import Admin, AdminIndexView, expose
 from flask_admin.contrib.sqla import ModelView
 from sqlalchemy import text
 from datetime import datetime
@@ -37,6 +37,13 @@ class Report(db.Model):
     status = db.Column(db.String(20), nullable=False, default='Received')
     date_submitted = db.Column(db.DateTime, default=datetime.utcnow)
 
+class SecureAdminIndexView(AdminIndexView):
+    def is_accessible(self):
+        return session.get('role') == 'admin'
+
+    def inaccessible_callback(self, name, **kwargs):
+        return redirect(url_for('login'))
+
 class SecureModelView(ModelView):
     def is_accessible(self):
         return session.get('role') == 'admin'
@@ -44,7 +51,7 @@ class SecureModelView(ModelView):
     def inaccessible_callback(self, name, **kwargs):
         return redirect(url_for('login'))
 
-admin_panel = Admin(app, name='Crime Reporting Admin', template_mode='bootstrap4', url='/manage')
+admin_panel = Admin(app, name='Crime Reporting Admin', template_mode='bootstrap4', url='/manage', index_view=SecureAdminIndexView())
 admin_panel.add_view(SecureModelView(User, db.session))
 admin_panel.add_view(SecureModelView(Report, db.session))    
 
