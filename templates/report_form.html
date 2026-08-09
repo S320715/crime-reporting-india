@@ -9,22 +9,17 @@
         {% endfor %}
     </select><br>
 
-    <label>Area:</label>
-    <select name="area" required>
-        {% for area in areas %}
-        <option value="{{ area }}">{{ area }}</option>
-        {% endfor %}
-    </select><br>
-
     <label>Description:</label><br>
     <textarea name="description" rows="5" cols="40" required></textarea><br>
 
     <label>Click the exact location on the map:</label>
     <div id="pickMap" style="height: 350px; width: 100%; margin-top: 8px;"></div>
     <p id="locationStatus" style="color: #b00; font-weight: bold;">No location selected yet — click the map above.</p>
+    <p id="addressStatus" style="color: #555;"></p>
 
     <input type="hidden" name="latitude" id="latitude">
     <input type="hidden" name="longitude" id="longitude">
+    <input type="hidden" name="area" id="area">
 
     <button type="submit">Submit Report</button>
 </form>
@@ -35,7 +30,6 @@
 
 <script>
     var pickMap = L.map('pickMap').setView([28.6139, 77.2090], 12);
-
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
     }).addTo(pickMap);
@@ -46,9 +40,7 @@
         var lat = e.latlng.lat;
         var lng = e.latlng.lng;
 
-        if (marker) {
-            pickMap.removeLayer(marker);
-        }
+        if (marker) { pickMap.removeLayer(marker); }
         marker = L.marker([lat, lng]).addTo(pickMap);
 
         document.getElementById('latitude').value = lat;
@@ -57,6 +49,20 @@
         var status = document.getElementById('locationStatus');
         status.style.color = '#080';
         status.innerText = 'Location selected: ' + lat.toFixed(5) + ', ' + lng.toFixed(5);
+
+        var addrStatus = document.getElementById('addressStatus');
+        addrStatus.innerText = 'Looking up address...';
+
+        fetch('/api/reverse-geocode?lat=' + lat + '&lng=' + lng)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('area').value = data.area;
+                addrStatus.innerText = 'Detected area: ' + data.area;
+            })
+            .catch(() => {
+                addrStatus.innerText = 'Could not detect address automatically.';
+                document.getElementById('area').value = 'Unknown Area';
+            });
     });
 
     document.getElementById('reportForm').addEventListener('submit', function(e) {

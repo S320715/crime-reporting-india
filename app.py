@@ -1,15 +1,18 @@
+import os
+import math
+import requests
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import bcrypt
 
 app = Flask(__name__)
-import os
 
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///crime_reports.db')
 if database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+
 app.config['SECRET_KEY'] = 'change-this-later-to-something-random'
 db = SQLAlchemy(app)
 
@@ -30,6 +33,16 @@ class Report(db.Model):
     longitude = db.Column(db.Float, nullable=True)
     status = db.Column(db.String(20), nullable=False, default='Received')
     date_submitted = db.Column(db.DateTime, default=datetime.utcnow)
+
+def haversine_km(lat1, lon1, lat2, lon2):
+    R = 6371
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
+    return 2 * R * math.asin(math.sqrt(a))
+
+CRIME_TYPES = ['Theft', 'Assault', 'Burglary', 'Vandalism', 'Fraud', 'Other']
 
 @app.route('/')
 def home():
@@ -97,16 +110,6 @@ def citizen_home():
         return redirect(url_for('login'))
     return render_template('citizen_home.html', name=session['user_name'])
 
-AREAS = ['Sector 1 - Market', 'Sector 2 - Residential', 'Sector 3 - Industrial', 'Sector 4 - Downtown', 'Sector 5 - Outskirts']
-CRIME_TYPES = ['Theft', 'Assault', 'Burglary', 'Vandalism', 'Fraud', 'Other']
-AREA_COORDS = {
-    'Sector 1 - Market': (28.6139, 77.2090),
-    'Sector 2 - Residential': (28.6200, 77.2150),
-    'Sector 3 - Industrial': (28.6100, 77.2200),
-    'Sector 4 - Downtown': (28.6180, 77.2050),
-    'Sector 5 - Outskirts': (28.6250, 77.2250),
-}
-
 @app.route('/submit-report', methods=['GET', 'POST'])
 def submit_report():
     if 'user_id' not in session or session.get('role') != 'citizen':
@@ -119,6 +122,7 @@ def submit_report():
 
         lat = request.form.get('latitude')
         lng = request.form.get('longitude')
+        area = request.form.get('area')
         if not lat or not lng:
             flash('Please click a location on the map before submitting.')
             return redirect(url_for('submit_report'))
@@ -127,18 +131,17 @@ def submit_report():
             user_id=session['user_id'],
             crime_type=request.form['crime_type'],
             description=request.form['description'],
-            area=request.form['area'],
+            area=area or 'Unknown Area',
             latitude=float(lat),
             longitude=float(lng),
             status='Received'
         )
-        
         db.session.add(new_report)
         db.session.commit()
         flash('Your report has been submitted successfully.')
         return redirect(url_for('citizen_home'))
 
-    return render_template('report_form.html', areas=AREAS, crime_types=CRIME_TYPES)
+    return render_template('report_form.html', crime_types=CRIME_TYPES)
 
 @app.route('/my-reports')
 def my_reports():
@@ -160,21 +163,21 @@ def api_reports():
         return jsonify([]), 403
 
     reports = Report.query.all()
-
-    area_counts = {}
-    for r in reports:
-        area_counts[r.area] = area_counts.get(r.area, 0) + 1
-
     data = []
     for r in reports:
-        if r.latitude is not None and r.longitude is not None:
-            lat, lng = r.latitude, r.longitude
-        else:
-            lat, lng = AREA_COORDS.get(r.area, (28.6139, 77.2090))
-        count = area_counts[r.area]
-        if count >= 10:
+        if r.latitude is None or r.longitude is None:
+            continue
+
+        nearby_count = 0
+        for other in reports:
+            if other.latitude is None or other.longitude is None:
+                continue
+            if haversine_km(r.latitude, r.longitude, other.latitude, other.longitude) <= 5:
+                nearby_count += 1
+
+        if nearby_count >= 10:
             hotspot_level = 'red'
-        elif count >= 5:
+        elif nearby_count >= 5:
             hotspot_level = 'amber'
         else:
             hotspot_level = 'normal'
@@ -186,13 +189,39 @@ def api_reports():
             'description': r.description,
             'status': r.status,
             'date': r.date_submitted.strftime('%d %b %Y'),
-            'lat': lat,
-            'lng': lng,
+            'lat': r.latitude,
+            'lng': r.longitude,
             'hotspot_level': hotspot_level,
-            'area_count': count
+            'area_count': nearby_count
         })
-
     return jsonify(data)
+
+@app.route('/api/reverse-geocode')
+def reverse_geocode():
+    if 'user_id' not in session:
+        return jsonify({'error': 'not logged in'}), 403
+
+    lat = request.args.get('lat')
+    lng = request.args.get('lng')
+    if not lat or not lng:
+        return jsonify({'error': 'missing coordinates'}), 400
+
+    try:
+        response = requests.get(
+            'https://nominatim.openstreetmap.org/reverse',
+            params={'format': 'json', 'lat': lat, 'lon': lng, 'zoom': 14, 'addressdetails': 1},
+            headers={'User-Agent': 'CrimeReportingIndia-MScDissertation/1.0'},
+            timeout=5
+        )
+        address = response.json().get('address', {})
+        area_name = (
+            address.get('suburb') or address.get('neighbourhood') or
+            address.get('city_district') or address.get('town') or
+            address.get('village') or address.get('city') or 'Unknown Area'
+        )
+        return jsonify({'area': area_name})
+    except Exception:
+        return jsonify({'area': 'Unknown Area'})
 
 @app.route('/update-status/<int:report_id>', methods=['POST'])
 def update_status(report_id):
