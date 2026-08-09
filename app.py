@@ -26,6 +26,8 @@ class Report(db.Model):
     crime_type = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=False)
     area = db.Column(db.String(100), nullable=False)
+    latitude = db.Column(db.Float, nullable=True)
+    longitude = db.Column(db.Float, nullable=True)
     status = db.Column(db.String(20), nullable=False, default='Received')
     date_submitted = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -115,13 +117,22 @@ def submit_report():
             flash('Please provide a more detailed description (at least 10 characters).')
             return redirect(url_for('submit_report'))
 
+        lat = request.form.get('latitude')
+        lng = request.form.get('longitude')
+        if not lat or not lng:
+            flash('Please click a location on the map before submitting.')
+            return redirect(url_for('submit_report'))
+
         new_report = Report(
             user_id=session['user_id'],
             crime_type=request.form['crime_type'],
             description=request.form['description'],
             area=request.form['area'],
+            latitude=float(lat),
+            longitude=float(lng),
             status='Received'
         )
+        
         db.session.add(new_report)
         db.session.commit()
         flash('Your report has been submitted successfully.')
@@ -156,7 +167,10 @@ def api_reports():
 
     data = []
     for r in reports:
-        lat, lng = AREA_COORDS.get(r.area, (28.6139, 77.2090))
+        if r.latitude is not None and r.longitude is not None:
+            lat, lng = r.latitude, r.longitude
+        else:
+            lat, lng = AREA_COORDS.get(r.area, (28.6139, 77.2090))
         count = area_counts[r.area]
         if count >= 10:
             hotspot_level = 'red'

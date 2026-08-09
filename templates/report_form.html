@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <h2>Submit a Crime Report</h2>
-<form method="POST">
+<form method="POST" id="reportForm">
     <label>Type of Crime:</label>
     <select name="crime_type" required>
         {% for type in crime_types %}
@@ -19,7 +19,51 @@
     <label>Description:</label><br>
     <textarea name="description" rows="5" cols="40" required></textarea><br>
 
+    <label>Click the exact location on the map:</label>
+    <div id="pickMap" style="height: 350px; width: 100%; margin-top: 8px;"></div>
+    <p id="locationStatus" style="color: #b00; font-weight: bold;">No location selected yet — click the map above.</p>
+
+    <input type="hidden" name="latitude" id="latitude">
+    <input type="hidden" name="longitude" id="longitude">
+
     <button type="submit">Submit Report</button>
 </form>
 <p><a href="{{ url_for('citizen_home') }}">Back to home</a></p>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    var pickMap = L.map('pickMap').setView([28.6139, 77.2090], 12);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(pickMap);
+
+    var marker = null;
+
+    pickMap.on('click', function(e) {
+        var lat = e.latlng.lat;
+        var lng = e.latlng.lng;
+
+        if (marker) {
+            pickMap.removeLayer(marker);
+        }
+        marker = L.marker([lat, lng]).addTo(pickMap);
+
+        document.getElementById('latitude').value = lat;
+        document.getElementById('longitude').value = lng;
+
+        var status = document.getElementById('locationStatus');
+        status.style.color = '#080';
+        status.innerText = 'Location selected: ' + lat.toFixed(5) + ', ' + lng.toFixed(5);
+    });
+
+    document.getElementById('reportForm').addEventListener('submit', function(e) {
+        if (!document.getElementById('latitude').value) {
+            e.preventDefault();
+            alert('Please click a location on the map before submitting.');
+        }
+    });
+</script>
 {% endblock %}
