@@ -1,9 +1,9 @@
 import os
 import math
 import requests
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, make_response
 from flask_sqlalchemy import SQLAlchemy
-from flask_admin import Admin
+from flask_admin import Admin, AdminIndexView, expose
 from flask_admin.contrib.sqla import ModelView
 from sqlalchemy import text
 from datetime import datetime
@@ -37,6 +37,13 @@ class Report(db.Model):
     status = db.Column(db.String(20), nullable=False, default='Received')
     date_submitted = db.Column(db.DateTime, default=datetime.utcnow)
 
+class SecureAdminIndexView(AdminIndexView):
+    def is_accessible(self):
+        return session.get('role') == 'admin'
+
+    def inaccessible_callback(self, name, **kwargs):
+        return redirect(url_for('login'))
+
 class SecureModelView(ModelView):
     def is_accessible(self):
         return session.get('role') == 'admin'
@@ -44,7 +51,7 @@ class SecureModelView(ModelView):
     def inaccessible_callback(self, name, **kwargs):
         return redirect(url_for('login'))
 
-admin_panel = Admin(app, name='Crime Reporting Admin', template_mode='bootstrap4', url='/manage')
+admin_panel = Admin(app, name='Crime Reporting Admin', template_mode='bootstrap4', url='/manage', index_view=SecureAdminIndexView())
 admin_panel.add_view(SecureModelView(User, db.session))
 admin_panel.add_view(SecureModelView(Report, db.session))    
 
@@ -169,7 +176,10 @@ def my_reports():
 def police_map():
     if 'user_id' not in session or session.get('role') not in ['police', 'admin']:
         return redirect(url_for('login'))
-    return render_template('police_map.html', name=session['user_name'])
+    response = make_response(render_template('police_map.html', name=session['user_name']))
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    return response
 
 @app.route('/api/reports')
 def api_reports():
@@ -208,7 +218,10 @@ def api_reports():
             'hotspot_level': hotspot_level,
             'area_count': nearby_count
         })
-    return jsonify(data)
+    response = jsonify(data)
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    return response
 
 @app.route('/api/reverse-geocode')
 def reverse_geocode():
