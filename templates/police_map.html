@@ -7,12 +7,27 @@
     <span style="background: blue; color: white; padding: 3px 8px;">Normal</span>
     <span style="background: orange; color: white; padding: 3px 8px;">Hotspot (5+ reports)</span>
     <span style="background: red; color: white; padding: 3px 8px;">High Hotspot (10+ reports)</span>
+    <span style="border: 3px solid purple; padding: 1px 7px;">Under Investigation</span>
 </div>
 
 <div id="map" style="height: 500px; width: 100%;"></div>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+    .under-investigation-label {
+        background: purple;
+        color: white;
+        border: none;
+        font-size: 11px;
+        font-weight: bold;
+        padding: 2px 6px;
+    }
+    .under-investigation-label::before {
+        border-top-color: purple;
+    }
+</style>
 
 <script>
     var map = L.map('map').setView([28.6139, 77.2090], 13);
@@ -25,16 +40,34 @@
         .then(response => response.json())
         .then(reports => {
             reports.forEach(function(r) {
+                // Resolved reports are no longer shown on the map.
+                // They still count toward hotspot density on the server,
+                // only the visible marker is hidden here.
+                if (r.status === 'Resolved') {
+                    return;
+                }
+
                 var color = 'blue';
                 if (r.hotspot_level === 'amber') color = 'orange';
                 if (r.hotspot_level === 'red') color = 'red';
 
+                var isUnderInvestigation = (r.status === 'Under Investigation');
+
                 var marker = L.circleMarker([r.lat, r.lng], {
                     radius: 10,
                     fillColor: color,
-                    color: color,
+                    color: isUnderInvestigation ? 'purple' : color,
+                    weight: isUnderInvestigation ? 4 : 2,
                     fillOpacity: 0.7
                 }).addTo(map);
+
+                if (isUnderInvestigation) {
+                    marker.bindTooltip('Under Investigation', {
+                        permanent: true,
+                        direction: 'top',
+                        className: 'under-investigation-label'
+                    }).openTooltip();
+                }
 
                 var popupContent = '<b>' + r.crime_type + '</b><br>' +
                     'Area: ' + r.area + ' (' + r.area_count + ' reports)<br>' +
@@ -43,9 +76,9 @@
                     r.description + '<br><br>' +
                     '<form method="POST" action="/update-status/' + r.id + '">' +
                     '<select name="status">' +
-                    '<option value="Received">Received</option>' +
-                    '<option value="Under Investigation">Under Investigation</option>' +
-                    '<option value="Resolved">Resolved</option>' +
+                    '<option value="Received"' + (r.status === 'Received' ? ' selected' : '') + '>Received</option>' +
+                    '<option value="Under Investigation"' + (r.status === 'Under Investigation' ? ' selected' : '') + '>Under Investigation</option>' +
+                    '<option value="Resolved"' + (r.status === 'Resolved' ? ' selected' : '') + '>Resolved</option>' +
                     '</select>' +
                     '<button type="submit">Update</button>' +
                     '</form>';
@@ -53,10 +86,11 @@
                 marker.bindPopup(popupContent);
             });
         });
-        window.addEventListener('pageshow', function(event) {
-    if (event.persisted) {
-        window.location.reload();
-    }
-});
+
+    window.addEventListener('pageshow', function(event) {
+        if (event.persisted) {
+            window.location.reload();
+        }
+    });
 </script>
 {% endblock %}
