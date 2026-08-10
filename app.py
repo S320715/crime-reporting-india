@@ -215,7 +215,10 @@ def api_reports():
             'hotspot_level': hotspot_level,
             'area_count': nearby_count
         })
-    return jsonify(data)
+    response = jsonify(data)
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    return response
 
 @app.route('/api/reverse-geocode')
 def reverse_geocode():
