@@ -186,16 +186,16 @@ def api_reports():
     if 'user_id' not in session or session.get('role') not in ['police', 'admin']:
         return jsonify([]), 403
 
-    reports = Report.query.all()
-    data = []
-    for r in reports:
-        if r.latitude is None or r.longitude is None:
-            continue
+    all_reports = Report.query.all()
+    active_reports = [
+        r for r in all_reports
+        if r.status != 'Resolved' and r.latitude is not None and r.longitude is not None
+    ]
 
+    data = []
+    for r in active_reports:
         nearby_count = 0
-        for other in reports:
-            if other.latitude is None or other.longitude is None:
-                continue
+        for other in active_reports:
             if haversine_km(r.latitude, r.longitude, other.latitude, other.longitude) <= 5:
                 nearby_count += 1
 
@@ -207,21 +207,13 @@ def api_reports():
             hotspot_level = 'normal'
 
         data.append({
-            'id': r.id,
-            'crime_type': r.crime_type,
-            'area': r.area,
-            'description': r.description,
-            'status': r.status,
+            'id': r.id, 'crime_type': r.crime_type, 'area': r.area,
+            'description': r.description, 'status': r.status,
             'date': r.date_submitted.strftime('%d %b %Y'),
-            'lat': r.latitude,
-            'lng': r.longitude,
-            'hotspot_level': hotspot_level,
-            'area_count': nearby_count
+            'lat': r.latitude, 'lng': r.longitude,
+            'hotspot_level': hotspot_level, 'area_count': nearby_count
         })
-    response = jsonify(data)
-    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-    response.headers['Pragma'] = 'no-cache'
-    return response
+    return jsonify(data)
 
 @app.route('/api/reverse-geocode')
 def reverse_geocode():
