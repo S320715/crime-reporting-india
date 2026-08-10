@@ -51,7 +51,7 @@ class SecureModelView(ModelView):
     def inaccessible_callback(self, name, **kwargs):
         return redirect(url_for('login'))
 
-admin_panel = Admin(app, name='Crime Reporting Admin', template_mode='bootstrap4', url='/manage', index_view=SecureAdminIndexView())
+admin_panel = Admin(app, name='Crime Reporting Admin', template_mode='bootstrap4', index_view=SecureAdminIndexView(url='/manage'))
 admin_panel.add_view(SecureModelView(User, db.session))
 admin_panel.add_view(SecureModelView(Report, db.session))    
 
